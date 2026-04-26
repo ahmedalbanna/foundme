@@ -1,0 +1,174 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Core Primitives ---
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin"; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // --- Validation Helpers ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'role', 'createdAt'])
+        && data.email is string && data.email.size() <= 200
+        && data.role in ["user", "admin"]
+        && data.createdAt is timestamp;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['sellerId', 'title', 'price', 'status', 'createdAt'])
+        && data.sellerId == request.auth.uid
+        && data.title is string && data.title.size() <= 100
+        && data.price is number && data.price >= 0
+        && data.status in ["active", "sold", "hidden"]
+        && data.createdAt is timestamp;
+    }
+
+    function isValidFavorite(data) {
+      return data.keys().hasAll(['userId', 'productId', 'createdAt'])
+        && data.userId == request.auth.uid
+        && data.productId is string && data.productId.size() <= 128
+        && data.createdAt is timestamp;
+    }
+
+    function isValidChat(data) {
+      return data.keys().hasAll(['participantIds', 'updatedAt'])
+        && data.participantIds is list
+        && data.participantIds.size() == 2
+        && data.participantIds[0] is string
+        && (request.auth.uid in data.participantIds)
+        && data.updatedAt is timestamp;
+    }
+    
+    function isValidChatMessage(data, chatId) {
+      return data.keys().hasAll(['senderId', 'text', 'createdAt'])
+        && data.senderId == request.auth.uid
+        && data.text is string && data.text.size() <= 2000
+        && data.createdAt is timestamp
+        // Must be participant
+        && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds);
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['buyerId', 'sellerId', 'productId', 'price', 'status', 'createdAt'])
+        && data.buyerId == request.auth.uid
+        && data.sellerId is string && data.sellerId.size() <= 128
+        && data.productId is string && data.productId.size() <= 128
+        && data.price is number
+        && data.status in ["pending", "paid", "shipped", "delivered", "cancelled"]
+        && data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    // 1. Users
+    match /users/{userId} {
+      allow get: if isSignedIn(); // User profiles are public to authenticated users
+      allow list: if isAdmin();
+      allow create: if isSignedIn() 
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidUser(incoming())
+        && incoming().role == 'user'; // cannot self-assign admin
+      allow update: if (
+        isSignedIn() && isValidId(userId) && request.auth.uid == userId && isValidUser(incoming()) && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'avatarUrl', 'role', 'email', 'createdAt']) 
+          && incoming().role == existing().role // Role is immortal
+          && incoming().createdAt == existing().createdAt
+          && incoming().email == existing().email
+        )
+      );
+    }
+
+    // 2. Products
+    match /products/{productId} {
+      allow get: if true; // Publicly visible
+      // Client must filter queries, but checking for true limits is fine here since it's a public marketplace. App relies on query filters.
+      allow list: if true;
+      allow create: if isSignedIn() 
+        && isValidId(productId)
+        && isValidProduct(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if (
+        isSignedIn() && isValidId(productId) && isValidProduct(incoming()) && (
+          (request.auth.uid == existing().sellerId && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'price', 'condition', 'size', 'brand', 'color', 'categoryId', 'categoryName', 'images', 'status', 'isRare', 'updatedAt', 'sellerId', 'createdAt'])
+          && incoming().createdAt == existing().createdAt
+          && incoming().sellerId == existing().sellerId)
+        )
+      ) || isAdmin();
+      allow delete: if isSignedIn() && isValidId(productId) && existing().sellerId == request.auth.uid;
+    }
+
+    // 3. Favorites
+    match /favorites/{favoriteId} {
+      allow get: if isSignedIn() && isValidId(favoriteId) && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() 
+        && isValidId(favoriteId)
+        && isValidFavorite(incoming())
+        && exists(/databases/$(database)/documents/products/$(incoming().productId))
+        && incoming().createdAt == request.time;
+      allow update: if false; // Favorites are immutable
+      allow delete: if isSignedIn() && isValidId(favoriteId) && existing().userId == request.auth.uid;
+    }
+
+    // 4. Chats
+    match /chats/{chatId} {
+      allow get: if isSignedIn() && isValidId(chatId) && (request.auth.uid in existing().participantIds);
+      allow list: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
+      allow create: if isSignedIn() 
+        && isValidId(chatId)
+        && isValidChat(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if (
+        isSignedIn() && isValidId(chatId) && isValidChat(incoming()) && (
+          (request.auth.uid in existing().participantIds)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt', 'participantIds', 'productId'])
+          && incoming().participantIds == existing().participantIds
+          && incoming().updatedAt == request.time
+        )
+      );
+      
+      // Chat Messages Subcollection
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidId(chatId) && isValidId(messageId) && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds);
+        allow list: if isSignedIn() && isValidId(chatId) && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds);
+        allow create: if isSignedIn() 
+          && isValidId(chatId)
+          && isValidId(messageId)
+          && isValidChatMessage(incoming(), chatId)
+          && incoming().createdAt == request.time;
+        allow update, delete: if false; // Immutable
+      }
+    }
+
+    // 5. Orders
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && isValidId(orderId) && (request.auth.uid == existing().buyerId || request.auth.uid == existing().sellerId || isAdmin());
+      allow list: if isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid);
+      allow create: if isSignedIn() 
+        && isValidId(orderId)
+        && isValidOrder(incoming())
+        && exists(/databases/$(database)/documents/products/$(incoming().productId))
+        && incoming().createdAt == request.time;
+      allow update: if (
+        isSignedIn() && isValidId(orderId) && isValidOrder(incoming()) && (
+          (request.auth.uid == existing().sellerId && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'buyerId', 'sellerId', 'productId', 'price', 'createdAt'])
+            && incoming().buyerId == existing().buyerId
+            && incoming().sellerId == existing().sellerId
+            && incoming().productId == existing().productId
+            && incoming().price == existing().price
+            && incoming().createdAt == existing().createdAt
+          ) || isAdmin()
+        )
+      );
+    }
+  }
+}
