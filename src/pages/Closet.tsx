@@ -1,12 +1,41 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PackageOpen, DollarSign, ListPlus, TrendingUp } from 'lucide-react';
 import { useAuthState } from '@/hooks/useAuthState';
+import { Link, useParams } from 'react-router-dom';
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 
 export function Closet() {
   const { user } = useAuthState();
+  const { userId } = useParams();
   const [activeTab, setActiveTab] = useState<'listings' | 'sold' | 'purchases' | 'stats'>('listings');
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (!user) {
+  const targetUserId = userId || user?.uid;
+
+  useEffect(() => {
+    const fetchUserProducts = async () => {
+      if (!targetUserId) return;
+      setLoading(true);
+      try {
+        const q = query(
+          collection(db, 'products'),
+          where('sellerId', '==', targetUserId),
+          orderBy('createdAt', 'desc')
+        );
+        const snap = await getDocs(q);
+        setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUserProducts();
+  }, [targetUserId]);
+
+  if (!user && !userId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
         <h2 className="text-2xl font-serif font-bold mb-4">Your Closet Awaits</h2>
@@ -46,10 +75,10 @@ export function Closet() {
             </div>
           </div>
         </div>
-        <button className="flex items-center space-x-2 bg-black text-white px-6 py-3 rounded-full font-medium hover:bg-gray-800 transition">
+        <Link to="/add-product" className="flex items-center space-x-2 bg-black text-white px-6 py-3 rounded-full font-medium hover:bg-gray-800 transition">
           <ListPlus className="w-4 h-4" />
           <span>Add New Listing</span>
-        </button>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -84,16 +113,35 @@ export function Closet() {
           ))}
         </div>
 
-        <div className="bg-white rounded-3xl border shadow-sm p-12 text-center text-gray-500 flex flex-col items-center justify-center min-h-[300px]">
-          <PackageOpen className="w-12 h-12 text-gray-300 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900">No active {activeTab}</h3>
-          <p className="mt-2">You don't have any items in this section right now.</p>
-          {activeTab === 'listings' && (
-            <button className="mt-6 border border-gray-300 font-medium text-gray-700 px-6 py-3 rounded-full hover:bg-gray-50">
-              Create a listing
-            </button>
-          )}
-        </div>
+        {loading ? (
+          <div className="py-20 text-center text-gray-400">Loading closet items...</div>
+        ) : products.length > 0 && activeTab === 'listings' ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {products.map((product) => (
+              <Link to={`/product/${product.id}`} key={product.id} className="group cursor-pointer">
+                <div className="aspect-[3/4] bg-gray-100 rounded-2xl overflow-hidden">
+                  <img src={product.images?.[0]} alt={product.title} className="w-full h-full object-cover transition group-hover:scale-105" />
+                </div>
+                <div className="mt-3">
+                  <h4 className="font-medium text-sm truncate">{product.title}</h4>
+                  <p className="font-bold font-serif py-1">${product.price}</p>
+                  <p className="text-[10px] uppercase text-gray-400 font-black tracking-widest">{product.status}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white rounded-3xl border shadow-sm p-12 text-center text-gray-500 flex flex-col items-center justify-center min-h-[300px]">
+            <PackageOpen className="w-12 h-12 text-gray-300 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900">No active {activeTab}</h3>
+            <p className="mt-2">You don't have any items in this section right now.</p>
+            {activeTab === 'listings' && !userId && (
+              <Link to="/add-product" className="mt-6 border border-gray-300 font-medium text-gray-700 px-6 py-3 rounded-full hover:bg-gray-50">
+                Create a listing
+              </Link>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Upload, Sparkles, X, ArrowRight, ScanSearch } from 'lucide-react';
+import React, { useState } from 'react';
+import { Upload, Sparkles, X, ArrowRight, ScanSearch, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from '@google/genai';
 

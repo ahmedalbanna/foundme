@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Filter, SlidersHorizontal, ChevronDown, Heart } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '@/lib/firebase';
 import { collection, query, getDocs, orderBy } from 'firebase/firestore';
 
@@ -117,10 +117,10 @@ export function Marketplace() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-10">
             {filteredProducts.map((product) => (
-              <div key={product.id} className="group cursor-pointer">
+              <Link to={`/product/${product.id}`} key={product.id} className="group cursor-pointer">
                 <div className="relative aspect-[3/4] bg-gray-100 rounded-3xl overflow-hidden">
                   <img src={product.images?.[0] || 'https://images.unsplash.com/photo-1551028719-01c1eb562141?w=800&auto=format&fit=crop&q=60'} alt={product.title} className="w-full h-full object-cover transition duration-500 group-hover:scale-105" />
-                  <button className="absolute top-4 right-4 p-2.5 rounded-full bg-white/50 backdrop-blur hover:bg-white text-gray-900 transition hover:scale-110">
+                  <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); /* Handle favorite */ }} className="absolute top-4 right-4 p-2.5 rounded-full bg-white/50 backdrop-blur hover:bg-white text-gray-900 transition hover:scale-110">
                      <Heart className="w-4 h-4" />
                   </button>
                   {product.isRare && (
@@ -137,7 +137,7 @@ export function Marketplace() {
                     <span className="text-xs text-gray-400 uppercase tracking-wider">{product.condition === 'new' ? 'New w/tags' : 'Pre-owned'}</span>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
