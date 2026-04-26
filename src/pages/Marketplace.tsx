@@ -3,6 +3,7 @@ import { Filter, SlidersHorizontal, ChevronDown, Heart } from 'lucide-react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '@/lib/firebase';
 import { collection, query, getDocs, orderBy } from 'firebase/firestore';
+import { cn } from '@/lib/utils';
 
 export function Marketplace() {
   const [searchParams] = useSearchParams();
@@ -86,55 +87,61 @@ export function Marketplace() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b pb-4 gap-4">
+      <div className={cn("flex-1 space-y-6 transition-colors duration-500", isRare && "bg-neutral-950 -mx-4 px-4 py-8 rounded-[2.5rem] text-white")}>
+        <div className={cn("flex flex-col sm:flex-row sm:items-end justify-between border-b pb-4 gap-4", isRare ? "border-white/10" : "border-gray-100")}>
           <div>
-            <h1 className="text-4xl font-bold font-serif">
-              {isRare ? "Rare & Vintage" : isFavorites ? "My Favorites" : "Marketplace"}
+            <h1 className={cn("text-4xl font-bold font-serif", isRare && "text-white")}>
+              {isRare ? (
+                <span className="flex items-center gap-3">
+                  <span className="bg-white text-black px-4 py-1 rounded-full text-sm font-black uppercase tracking-[0.2em]">Elite</span>
+                  Rare & Vintage
+                </span>
+              ) : isFavorites ? "My Favorites" : "Marketplace"}
             </h1>
-            {!isRare && !isFavorites && (
+            {isRare ? (
+              <p className="text-gray-400 mt-2">Authenticated heritage pieces and limited edition grails.</p>
+            ) : !isFavorites && (
               <p className="text-gray-500 mt-2">Discover curated pieces from top sellers around the world.</p>
             )}
           </div>
           <div className="flex items-center space-x-4">
-             <div className="bg-gray-100 p-1 rounded-lg inline-flex">
-                <button onClick={() => setActiveTab('all')} className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${activeTab==='all' ? 'bg-white shadow' : 'text-gray-500'}`}>All</button>
-                <button onClick={() => setActiveTab('new')} className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${activeTab==='new' ? 'bg-white shadow' : 'text-gray-500'}`}>New</button>
-                <button onClick={() => setActiveTab('pre_owned')} className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${activeTab==='pre_owned' ? 'bg-white shadow' : 'text-gray-500'}`}>Pre-Owned</button>
+             <div className={cn("p-1 rounded-lg inline-flex", isRare ? "bg-white/5" : "bg-gray-100")}>
+                <button onClick={() => setActiveTab('all')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition", activeTab==='all' ? (isRare ? "bg-white text-black" : "bg-white shadow") : "text-gray-500")}>All</button>
+                <button onClick={() => setActiveTab('new')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition", activeTab==='new' ? (isRare ? "bg-white text-black" : "bg-white shadow") : "text-gray-500")}>New</button>
+                <button onClick={() => setActiveTab('pre_owned')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition", activeTab==='pre_owned' ? (isRare ? "bg-white text-black" : "bg-white shadow") : "text-gray-500")}>Pre-Owned</button>
              </div>
-             <button className="flex items-center space-x-1 text-sm font-medium text-gray-600 border px-3 py-2 rounded-lg hover:bg-gray-50">
-               <span>Sort by</span> <ChevronDown className="w-4 h-4" />
-             </button>
           </div>
         </div>
 
         {loading ? (
            <div className="py-20 flex justify-center text-gray-400">Loading products...</div>
         ) : filteredProducts.length === 0 ? (
-           <div className="py-20 text-center text-gray-500 border-2 border-dashed rounded-3xl">
+           <div className={cn("py-20 text-center rounded-3xl border-2 border-dashed", isRare ? "border-white/10 text-white/40" : "border-gray-100 text-gray-500")}>
               <p className="text-lg">No products found here yet.</p>
            </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-10">
             {filteredProducts.map((product) => (
               <Link to={`/product/${product.id}`} key={product.id} className="group cursor-pointer">
-                <div className="relative aspect-[3/4] bg-gray-100 rounded-3xl overflow-hidden">
-                  <img src={product.images?.[0] || 'https://images.unsplash.com/photo-1551028719-01c1eb562141?w=800&auto=format&fit=crop&q=60'} alt={product.title} className="w-full h-full object-cover transition duration-500 group-hover:scale-105" />
-                  <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); /* Handle favorite */ }} className="absolute top-4 right-4 p-2.5 rounded-full bg-white/50 backdrop-blur hover:bg-white text-gray-900 transition hover:scale-110">
+                <div className={cn("relative aspect-[3/4] rounded-3xl overflow-hidden", isRare ? "bg-white/5 ring-1 ring-white/10" : "bg-gray-100")}>
+                  <img src={product.images?.[0]} alt={product.title} className="w-full h-full object-cover transition duration-700 group-hover:scale-110" />
+                  <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className={cn("absolute top-4 right-4 p-2.5 rounded-full backdrop-blur-md transition hover:scale-110", isRare ? "bg-white/10 text-white hover:bg-white/20" : "bg-white/50 text-gray-900 hover:bg-white")}>
                      <Heart className="w-4 h-4" />
                   </button>
                   {product.isRare && (
-                    <div className="absolute top-4 left-4 bg-black text-white text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-widest">
-                      Rare
+                    <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between pointer-events-none">
+                      <div className="bg-black/80 backdrop-blur text-white text-[10px] font-black px-3 py-1.5 rounded-full border border-white/20 uppercase tracking-widest">
+                        Rare Certified
+                      </div>
                     </div>
                   )}
                 </div>
                 <div className="mt-4 space-y-1">
-                  <p className="text-sm text-gray-500 font-medium">{product.brand || 'Brand'}</p>
-                  <h3 className="font-semibold text-gray-900 leading-snug">{product.title}</h3>
+                  <p className={cn("text-xs font-bold uppercase tracking-wider", isRare ? "text-white/40" : "text-gray-500")}>{product.brand || 'Brand'}</p>
+                  <h3 className={cn("font-medium text-lg leading-snug truncate", isRare ? "text-white group-hover:text-white/80" : "text-gray-900 group-hover:text-black")}>{product.title}</h3>
                   <div className="flex justify-between items-center mt-2">
-                    <p className="font-serif font-bold text-lg">${product.price}</p>
-                    <span className="text-xs text-gray-400 uppercase tracking-wider">{product.condition === 'new' ? 'New w/tags' : 'Pre-owned'}</span>
+                    <p className={cn("font-serif font-black text-xl", isRare ? "text-white" : "text-gray-900")}>${product.price}</p>
+                    <span className={cn("text-[10px] font-black uppercase tracking-[0.2em]", isRare ? "text-white/30" : "text-gray-400")}>{product.condition === 'new' ? 'Mint' : 'Heritage'}</span>
                   </div>
                 </div>
               </Link>

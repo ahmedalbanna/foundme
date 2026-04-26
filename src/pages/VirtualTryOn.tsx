@@ -57,7 +57,7 @@ export function VirtualTryOn() {
               },
             },
             {
-              text: 'Edit the first image so the person is wearing the garment shown in the second image. Make it look perfectly natural, keeping the person\'s identity and pose identical, just changing the clothes.',
+              text: 'Virtual try-on: Edit the first image (person) so they are wearing the garment shown in the second image. \n\nCRITICAL CONSTRAINTS:\n- Preserve the person\'s identity, face, body type, and pose exactly as original.\n- Adjust the garment size, perspective, and fit to match the person\'s form naturally.\n- Match the lighting, shadows, and environment of the first image so the clothes look fully integrated and photorealistic.\n- Ensure high quality and cohesive aesthetics.',
             },
           ],
         },

@@ -2,12 +2,16 @@ import React, { useState } from 'react';
 import { Upload, Sparkles, X, ArrowRight, ScanSearch, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from '@google/genai';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, query, limit } from 'firebase/firestore';
+import { Link } from 'react-router-dom';
 
 export function CelebrityLooks() {
   const [image, setImage] = useState<string | null>(null);
   const [base64Image, setBase64Image] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [extractedData, setExtractedData] = useState<any>(null);
+  const [matchedProducts, setMatchedProducts] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -25,12 +29,41 @@ export function CelebrityLooks() {
     reader.readAsDataURL(file);
   };
 
+  const findMatchingProducts = async (garments: any[]) => {
+    try {
+      // In a real app, you would use Algolia or Typesense for full-text search.
+      // Here we fetch a batch of products and filter locally for demonstration.
+      const q = query(collection(db, 'products'), limit(50));
+      const snap = await getDocs(q);
+      const allProducts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      const matches = garments.map(garment => {
+        // Find best match based on simple keyword inclusion
+        const terms = garment.searchQuery.toLowerCase().split(' ');
+        const bestMatched = allProducts.filter((p: any) => {
+           const pStr = `${p.title} ${p.brand} ${p.description} ${p.color}`.toLowerCase();
+           return terms.some((term: string) => term.length > 2 && pStr.includes(term));
+        }).slice(0, 2); // get up to 2 matches per garment
+
+        return {
+          ...garment,
+          matches: bestMatched
+        };
+      });
+
+      setMatchedProducts(matches);
+    } catch (err) {
+      console.error('Error finding matches:', err);
+    }
+  };
+
   const handleAnalyze = async () => {
     if (!base64Image) return;
     
     setLoading(true);
     setError(null);
     setExtractedData(null);
+    setMatchedProducts([]);
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -67,7 +100,9 @@ export function CelebrityLooks() {
       
       const textResponse = response.text;
       if (textResponse) {
-        setExtractedData(JSON.parse(textResponse.trim()));
+        const data = JSON.parse(textResponse.trim());
+        setExtractedData(data);
+        await findMatchingProducts(data.garments);
       }
     } catch (err: any) {
       console.error(err);
@@ -94,7 +129,7 @@ export function CelebrityLooks() {
             {image ? (
               <>
                 <img src={image} alt="Look" className="absolute inset-0 w-full h-full object-cover" />
-                <button onClick={() => { setImage(null); setBase64Image(null); setExtractedData(null); }} className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 backdrop-blur">
+                <button onClick={() => { setImage(null); setBase64Image(null); setExtractedData(null); setMatchedProducts([]); }} className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 backdrop-blur">
                   <X className="w-4 h-4" />
                 </button>
               </>
@@ -149,23 +184,32 @@ export function CelebrityLooks() {
 
                <div className="space-y-6">
                  <h3 className="text-xl font-bold font-serif">Found in Marketplace</h3>
-                 <div className="space-y-4">
-                   {extractedData.garments.map((garment: any, idx: number) => (
-                     <div key={idx} className="flex gap-4 p-4 border rounded-2xl hover:border-gray-400 transition bg-white">
-                        <div className="w-20 h-20 bg-gray-100 rounded-xl flex-shrink-0 flex items-center justify-center">
-                          {/* Placeholder image for a matched product */}
-                          <ShoppingBagIcon className="w-6 h-6 text-gray-400" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">{garment.color} {garment.type}</p>
-                              <h4 className="font-medium leading-tight">{garment.searchQuery}</h4>
-                            </div>
-                            <span className="font-serif font-bold pt-1">$--</span>
-                          </div>
-                          <button className="text-sm font-medium hover:underline mt-4">Shop Similar</button>
-                        </div>
+                 <div className="space-y-6">
+                   {matchedProducts.map((item: any, idx: number) => (
+                     <div key={idx} className="space-y-3">
+                       <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+                         <Sparkles className="w-4 h-4" /> {item.color} {item.type}
+                       </h4>
+                       
+                       {item.matches && item.matches.length > 0 ? (
+                         <div className="grid grid-cols-2 gap-4">
+                           {item.matches.map((match: any) => (
+                             <Link to={`/product/${match.id}`} key={match.id} className="group block border rounded-2xl hover:border-gray-400 transition bg-white overflow-hidden">
+                                <div className="aspect-square bg-gray-100 relative">
+                                  <img src={match.images?.[0]} alt={match.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500"/>
+                                </div>
+                                <div className="p-3">
+                                  <h4 className="font-medium text-sm leading-tight truncate">{match.title}</h4>
+                                  <span className="font-serif font-bold pt-1 text-sm">${match.price}</span>
+                                </div>
+                             </Link>
+                           ))}
+                         </div>
+                       ) : (
+                         <div className="p-4 border border-dashed rounded-2xl bg-gray-50 text-sm text-gray-500">
+                           No exact matches found. <span className="underline cursor-pointer hover:text-black">Request item</span>
+                         </div>
+                       )}
                      </div>
                    ))}
                  </div>

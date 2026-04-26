@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '@/lib/firebase';
 import { doc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { useAuthState } from '@/hooks/useAuthState';
-import { Heart, MessageCircle, Share2, ShieldCheck, ArrowLeft, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
+import { Heart, MessageCircle, Share2, ShieldCheck, ArrowLeft, ChevronLeft, ChevronRight, ShoppingBag, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 
@@ -111,8 +111,13 @@ export function ProductDetail() {
             )}
 
             {product.isRare && (
-              <div className="absolute top-6 left-6 bg-black text-white px-4 py-2 rounded-full text-xs font-black tracking-widest uppercase shadow-xl">
-                Rare Find
+              <div className="absolute top-6 left-6 flex flex-col gap-2">
+                <div className="bg-black text-white px-4 py-2 rounded-full text-[10px] font-black tracking-[0.2em] uppercase shadow-2xl border border-white/20">
+                  Elite Archive
+                </div>
+                <div className="bg-white/80 backdrop-blur-md text-black px-4 py-2 rounded-full text-[10px] font-black tracking-[0.2em] uppercase shadow-xl flex items-center gap-2">
+                  <ShieldCheck className="w-3 h-3" /> Certified Unique
+                </div>
               </div>
             )}
           </div>
@@ -172,6 +177,33 @@ export function ProductDetail() {
           <div className="space-y-4">
             <p className="text-gray-600 leading-relaxed">{product.description}</p>
           </div>
+
+          {product.isRare && (
+            <div className="p-8 bg-neutral-900 text-white rounded-[2rem] space-y-6 relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-8 opacity-10">
+                 <Sparkles className="w-24 h-24 text-white" />
+               </div>
+               <div className="space-y-2">
+                 <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white/50">Vintage Provenance</h3>
+                 <p className="text-sm leading-relaxed text-white/80 italic">
+                   This item has been identified as a significant archival piece. Its scarcity and preservation status make it a high-value collector's item. Our experts have verified its condition and authenticity hallmarks.
+                 </p>
+               </div>
+               <div className="flex gap-4 pt-4 border-t border-white/10">
+                 <div className="flex-1">
+                   <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-1">Authenticity</p>
+                   <p className="text-xs font-bold">100% Certified</p>
+                 </div>
+                 <div className="flex-1">
+                   <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-1">Status</p>
+                   <p className="text-xs font-bold font-serif italic text-white/90">Vault Grade</p>
+                 </div>
+               </div>
+               <button className="w-full mt-4 py-3 border border-white/20 hover:bg-white/10 transition-colors rounded-xl text-[10px] font-black uppercase tracking-[0.2em] text-white">
+                 Request Identity Report
+               </button>
+            </div>
+          )}
 
           <div className="space-y-4">
             <button className="w-full bg-black text-white py-5 rounded-full font-bold text-lg hover:bg-gray-800 transition flex items-center justify-center gap-3">
